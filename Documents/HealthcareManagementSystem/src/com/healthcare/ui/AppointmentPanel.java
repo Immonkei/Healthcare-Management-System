@@ -6,6 +6,11 @@ import com.healthcare.dao.PatientDAO;
 import com.healthcare.model.Appointment;
 import com.healthcare.model.Doctor;
 import com.healthcare.model.Patient;
+import com.github.lgooddatepicker.components.DatePicker; // Import LGoodDatePicker's DatePicker
+import com.github.lgooddatepicker.components.DatePickerSettings; // Import DatePickerSettings
+import com.github.lgooddatepicker.components.TimePicker; // Import LGoodDatePicker's TimePicker
+import com.github.lgooddatepicker.components.TimePickerSettings; // Import TimePickerSettings
+
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -15,12 +20,13 @@ import java.awt.event.ActionListener;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter; // Import DateTimeFormatter
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 public class AppointmentPanel extends JPanel {
+
     private AppointmentDAO appointmentDAO;
     private PatientDAO patientDAO;
     private DoctorDAO doctorDAO;
@@ -31,14 +37,14 @@ public class AppointmentPanel extends JPanel {
     // Form components
     private JComboBox<String> patientComboBox;
     private JComboBox<String> doctorComboBox;
-    private JTextField appointmentDateField; // YYYY-MM-DD
-    private JTextField appointmentTimeField; // HH:MM (24-hour format)
+    private DatePicker appointmentDatePicker; // Changed to LGoodDatePicker's DatePicker
+    private TimePicker appointmentTimePicker; // Added LGoodDatePicker's TimePicker
     private JTextArea reasonArea;
     private JComboBox<String> statusComboBox;
 
     // Maps to quickly get ID from selected name in ComboBox
     private Map<String, Integer> patientMap;
-    private Map<String, Integer> doctorMap;
+    private Map<String, Integer> doctorMap; // Can store null for "No Doctor" option
 
     // For update functionality - store selected appointment ID
     private int selectedAppointmentId = -1;
@@ -57,11 +63,20 @@ public class AppointmentPanel extends JPanel {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Initialize form fields
+        // Initialize LGoodDatePicker and TimePicker
+        DatePickerSettings dateSettings = new DatePickerSettings();
+        dateSettings.setFormatForDatesCommonEra("yyyy-MM-dd");
+        appointmentDatePicker = new DatePicker(dateSettings);
+
+        TimePickerSettings timeSettings = new TimePickerSettings();
+        // Explicitly use a time-only formatter to prevent UnsupportedTemporalTypeException
+        timeSettings.setFormatForDisplayTime(DateTimeFormatter.ofPattern("HH:mm"));
+        timeSettings.setFormatForMenuTimes(DateTimeFormatter.ofPattern("HH:mm"));
+        appointmentTimePicker = new TimePicker(timeSettings);
+
+        // Initialize other form fields
         patientComboBox = new JComboBox<>();
         doctorComboBox = new JComboBox<>();
-        appointmentDateField = new JTextField(10);
-        appointmentTimeField = new JTextField(8);
         reasonArea = new JTextArea(3, 20);
         JScrollPane reasonScrollPane = new JScrollPane(reasonArea);
         statusComboBox = new JComboBox<>(new String[]{"Scheduled", "Completed", "Cancelled"});
@@ -73,8 +88,8 @@ public class AppointmentPanel extends JPanel {
         int row = 0;
         row = addFormField(formPanel, gbc, "Patient:", patientComboBox, row);
         row = addFormField(formPanel, gbc, "Doctor:", doctorComboBox, row);
-        row = addFormField(formPanel, gbc, "Date (YYYY-MM-DD):", appointmentDateField, row);
-        row = addFormField(formPanel, gbc, "Time (HH:MM):", appointmentTimeField, row);
+        row = addFormField(formPanel, gbc, "Date:", appointmentDatePicker, row); // Use DatePicker
+        row = addFormField(formPanel, gbc, "Time:", appointmentTimePicker, row);   // Use TimePicker
         row = addFormField(formPanel, gbc, "Reason:", reasonScrollPane, row); // Use scroll pane for JTextArea
         row = addFormField(formPanel, gbc, "Status:", statusComboBox, row);
 
@@ -189,13 +204,13 @@ public class AppointmentPanel extends JPanel {
 
             int patientId = patientMap.get(patientComboBox.getSelectedItem().toString());
             int doctorId = doctorMap.get(doctorComboBox.getSelectedItem().toString());
-            LocalDate apptDate = LocalDate.parse(appointmentDateField.getText().trim());
-            LocalTime apptTime = LocalTime.parse(appointmentTimeField.getText().trim());
+            LocalDate apptDate = appointmentDatePicker.getDate(); // Get LocalDate directly
+            LocalTime apptTime = appointmentTimePicker.getTime();   // Get LocalTime directly
             String reason = reasonArea.getText().trim();
             String status = (String) statusComboBox.getSelectedItem();
 
-            if (reason.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Reason for appointment is required.", "Input Error", JOptionPane.ERROR_MESSAGE);
+            if (apptDate == null || apptTime == null || reason.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Date, Time, and Reason for appointment are required.", "Input Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -211,8 +226,6 @@ public class AppointmentPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Failed to schedule appointment. Check logs for details.", "Database Error", JOptionPane.ERROR_MESSAGE);
             }
 
-        } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "Invalid Date (YYYY-MM-DD) or Time (HH:MM) format.", "Input Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "An unexpected error occurred: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
@@ -233,13 +246,13 @@ public class AppointmentPanel extends JPanel {
 
             int patientId = patientMap.get(patientComboBox.getSelectedItem().toString());
             int doctorId = doctorMap.get(doctorComboBox.getSelectedItem().toString());
-            LocalDate apptDate = LocalDate.parse(appointmentDateField.getText().trim());
-            LocalTime apptTime = LocalTime.parse(appointmentTimeField.getText().trim());
+            LocalDate apptDate = appointmentDatePicker.getDate(); // Get LocalDate directly
+            LocalTime apptTime = appointmentTimePicker.getTime();   // Get LocalTime directly
             String reason = reasonArea.getText().trim();
             String status = (String) statusComboBox.getSelectedItem();
 
-            if (reason.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Reason for appointment is required.", "Input Error", JOptionPane.ERROR_MESSAGE);
+            if (apptDate == null || apptTime == null || reason.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Date, Time, and Reason for appointment are required.", "Input Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -254,8 +267,6 @@ public class AppointmentPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Failed to update appointment.", "Database Error", JOptionPane.ERROR_MESSAGE);
             }
 
-        } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "Invalid Date (YYYY-MM-DD) or Time (HH:MM) format.", "Input Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "An unexpected error occurred: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
@@ -323,8 +334,8 @@ public class AppointmentPanel extends JPanel {
     private void clearForm() {
         if (patientComboBox.getItemCount() > 0) patientComboBox.setSelectedIndex(0);
         if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
-        appointmentDateField.setText("");
-        appointmentTimeField.setText("");
+        appointmentDatePicker.setDate(null); // Clear DatePicker
+        appointmentTimePicker.setTime(null);   // Clear TimePicker
         reasonArea.setText("");
         statusComboBox.setSelectedItem("Scheduled");
         selectedAppointmentId = -1; // Reset selected ID
@@ -346,8 +357,8 @@ public class AppointmentPanel extends JPanel {
             // Date and Time
             LocalDate date = (LocalDate) tableModel.getValueAt(selectedRow, 3);
             LocalTime time = (LocalTime) tableModel.getValueAt(selectedRow, 4);
-            appointmentDateField.setText(date.toString());
-            appointmentTimeField.setText(time.toString());
+            appointmentDatePicker.setDate(date); // Set LocalDate directly
+            appointmentTimePicker.setTime(time);   // Set LocalTime directly
 
             // Reason and Status
             reasonArea.setText((String) tableModel.getValueAt(selectedRow, 5));

@@ -4,6 +4,8 @@ import com.healthcare.model.Patient;
 import com.healthcare.util.DatabaseConnection;
 
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -201,5 +203,56 @@ public class PatientDAO {
             ex.printStackTrace();
         }
         return false;
+    }
+
+    /**
+     * Searches for patients matching a given search term in various fields.
+     *
+     * @param searchTerm The term to search for (case-insensitive). Can be partial.
+     * @return A list of Patient objects matching the search criteria.
+     */
+    public List<Patient> searchPatients(String searchTerm) {
+        List<Patient> patients = new ArrayList<>();
+        // Use LOWER() for case-insensitive search. % for partial matches.
+        String SQL = "SELECT * FROM Patients WHERE LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(phone_number) LIKE ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(SQL)) {
+
+            String searchPattern = "%" + searchTerm.toLowerCase() + "%"; // Convert search term to lowercase once
+            pstmt.setString(1, searchPattern);
+            pstmt.setString(2, searchPattern);
+            pstmt.setString(3, searchPattern);
+            pstmt.setString(4, searchPattern);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    Patient patient = new Patient();
+                    patient.setPatientId(rs.getInt("patient_id"));
+                    patient.setFirstName(rs.getString("first_name"));
+                    patient.setLastName(rs.getString("last_name"));
+                    patient.setDateOfBirth(rs.getDate("date_of_birth").toLocalDate());
+                    patient.setGender(rs.getString("gender"));
+                    patient.setAddress(rs.getString("address"));
+                    patient.setCity(rs.getString("city"));
+                    patient.setState(rs.getString("state"));
+                    patient.setZipCode(rs.getString("zip_code"));
+                    patient.setPhoneNumber(rs.getString("phone_number"));
+                    patient.setEmail(rs.getString("email"));
+
+                    Timestamp regTimestamp = rs.getTimestamp("registration_date");
+                    if (regTimestamp != null) {
+                        patient.setRegistrationDate(regTimestamp.toLocalDateTime());
+                    }
+
+                    patients.add(patient);
+                }
+            }
+            System.out.println("Found " + patients.size() + " patients for search term: '" + searchTerm + "'");
+        } catch (SQLException ex) {
+            System.err.println("Error searching patients: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+        return patients;
     }
 }

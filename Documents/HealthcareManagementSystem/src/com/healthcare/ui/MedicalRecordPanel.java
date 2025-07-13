@@ -6,18 +6,22 @@ import com.healthcare.dao.DoctorDAO;
 import com.healthcare.model.MedicalRecord;
 import com.healthcare.model.Patient;
 import com.healthcare.model.Doctor;
+import com.github.lgooddatepicker.components.DatePicker; // Import LGoodDatePicker's DatePicker
+import com.github.lgooddatepicker.components.DatePickerSettings; // Import DatePickerSettings
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.time.LocalDate;
 import java.time.LocalDateTime; // Used for displaying the timestamp from DB
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class MedicalRecordPanel extends JPanel {
+
     private MedicalRecordDAO medicalRecordDAO;
     private PatientDAO patientDAO;
     private DoctorDAO doctorDAO;
@@ -28,6 +32,7 @@ public class MedicalRecordPanel extends JPanel {
     // Form components
     private JComboBox<String> patientComboBox;
     private JComboBox<String> doctorComboBox; // Doctor is optional, can be null
+    private DatePicker recordDatePicker; // Added LGoodDatePicker for record date
     private JTextArea diagnosisArea;
     private JTextArea treatmentArea;
     private JTextArea notesArea;
@@ -53,7 +58,13 @@ public class MedicalRecordPanel extends JPanel {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Initialize form fields
+        // Initialize LGoodDatePicker
+        DatePickerSettings dateSettings = new DatePickerSettings();
+        dateSettings.setFormatForDatesCommonEra("yyyy-MM-dd");
+        recordDatePicker = new DatePicker(dateSettings);
+        recordDatePicker.setDate(LocalDate.now()); // Default to today's date
+
+        // Initialize other form fields
         patientComboBox = new JComboBox<>();
         doctorComboBox = new JComboBox<>();
         diagnosisArea = new JTextArea(4, 25);
@@ -70,6 +81,7 @@ public class MedicalRecordPanel extends JPanel {
         int row = 0;
         row = addFormField(formPanel, gbc, "Patient:", patientComboBox, row);
         row = addFormField(formPanel, gbc, "Doctor (Optional):", doctorComboBox, row);
+        row = addFormField(formPanel, gbc, "Record Date:", recordDatePicker, row); // Use DatePicker
         row = addFormField(formPanel, gbc, "Diagnosis:", diagnosisScrollPane, row);
         row = addFormField(formPanel, gbc, "Treatment:", treatmentScrollPane, row);
         row = addFormField(formPanel, gbc, "Notes:", notesScrollPane, row);
@@ -185,6 +197,15 @@ public class MedicalRecordPanel extends JPanel {
                 doctorId = doctorMap.get(doctorComboBox.getSelectedItem().toString());
             }
 
+            LocalDate recordDate = recordDatePicker.getDate(); // Get LocalDate directly from DatePicker
+            if (recordDate == null) {
+                JOptionPane.showMessageDialog(this, "Record Date is required.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            // For adding, we usually let the DB set the timestamp, but if we allow manual entry, we'd use this date.
+            // For simplicity, we'll pass null for LocalDateTime and let DAO handle default timestamp on INSERT.
+            // If you want to use the selected date, you'd need to modify MedicalRecord constructor and DAO.
+
             String diagnosis = diagnosisArea.getText().trim();
             String treatment = treatmentArea.getText().trim();
             String notes = notesArea.getText().trim();
@@ -194,6 +215,10 @@ public class MedicalRecordPanel extends JPanel {
                 return;
             }
 
+            // Note: The MedicalRecord constructor expects LocalDateTime for recordDate.
+            // For new records, we often let the DB set the timestamp.
+            // If you want to use the date picker's value, you'd convert LocalDate to LocalDateTime.
+            // For now, we'll rely on the DB's DEFAULT CURRENT_TIMESTAMP for new records.
             MedicalRecord newRecord = new MedicalRecord(patientId, doctorId, diagnosis, treatment, notes);
             int recordId = medicalRecordDAO.addMedicalRecord(newRecord);
 
@@ -229,6 +254,23 @@ public class MedicalRecordPanel extends JPanel {
                 doctorId = doctorMap.get(doctorComboBox.getSelectedItem().toString());
             }
 
+            LocalDate recordDate = recordDatePicker.getDate(); // Get LocalDate directly from DatePicker
+            if (recordDate == null) {
+                JOptionPane.showMessageDialog(this, "Record Date is required.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            // When updating, we need to pass the full LocalDateTime to the DAO
+            // For simplicity, we'll fetch the existing record's LocalDateTime if available,
+            // otherwise use the selected date at start of day.
+            LocalDateTime currentRecordDateTime = null;
+            MedicalRecord existingRecord = medicalRecordDAO.getMedicalRecordById(selectedRecordId);
+            if (existingRecord != null && existingRecord.getRecordDate() != null) {
+                currentRecordDateTime = existingRecord.getRecordDate();
+            } else {
+                currentRecordDateTime = recordDate.atStartOfDay(); // Use start of day if no existing time
+            }
+
+
             String diagnosis = diagnosisArea.getText().trim();
             String treatment = treatmentArea.getText().trim();
             String notes = notesArea.getText().trim();
@@ -238,7 +280,8 @@ public class MedicalRecordPanel extends JPanel {
                 return;
             }
 
-            MedicalRecord recordToUpdate = new MedicalRecord(selectedRecordId, patientId, doctorId, null, diagnosis, treatment, notes); // recordDate handled by DB
+            // Pass the existing LocalDateTime or a new one based on the selected date
+            MedicalRecord recordToUpdate = new MedicalRecord(selectedRecordId, patientId, doctorId, currentRecordDateTime, diagnosis, treatment, notes);
             boolean updated = medicalRecordDAO.updateMedicalRecord(recordToUpdate);
 
             if (updated) {
@@ -282,51 +325,68 @@ public class MedicalRecordPanel extends JPanel {
 
     private void loadMedicalRecordsIntoTable() {
         tableModel.setRowCount(0); // Clear existing data
-        // It's generally better to load all records and filter in UI, or add a search feature.
-        // For simplicity, we'll load all for now, but a filter by patient would be common.
-        List<MedicalRecord> records = medicalRecordDAO.getMedicalRecordsByPatientId(0); // Get all patients' records (assuming PatientDAO.getAllPatients() and then iterating)
-        // Correction: MedicalRecordDAO only has getMedicalRecordsByPatientId. Let's make a get All in DAO for this.
-        // For now, let's just get all patients and get their records, or you can add a `getAllMedicalRecords()` to your MedicalRecordDAO
 
-        // Temporary workaround if getAllMedicalRecords isn't in DAO:
+        // This part needs to be adjusted based on your MedicalRecordDAO
+        // If MedicalRecordDAO has getAllMedicalRecords(), use that.
+        // Otherwise, iterate through patients to get their records.
+        // For demonstration, assuming we want to display all records regardless of patient.
+        // If your MedicalRecordDAO only has getMedicalRecordsByPatientId, you'd need to loop through all patients.
+        // Let's add a simple getAllMedicalRecords() to MedicalRecordDAO for better loading here.
+
+        // TEMPORARY: If MedicalRecordDAO does NOT have getAllMedicalRecords(), use this:
         List<Patient> allPatients = patientDAO.getAllPatients();
         for(Patient p : allPatients) {
             List<MedicalRecord> patientRecords = medicalRecordDAO.getMedicalRecordsByPatientId(p.getPatientId());
             for (MedicalRecord record : patientRecords) {
-                String patientName = "N/A";
-                Patient patient = patientDAO.getPatientById(record.getPatientId());
-                if (patient != null) {
-                    patientName = patient.getFirstName() + " " + patient.getLastName();
-                }
-
-                String doctorName = "N/A";
-                if (record.getDoctorId() != null) {
-                    Doctor doctor = doctorDAO.getDoctorById(record.getDoctorId());
-                    if (doctor != null) {
-                        doctorName = doctor.getFirstName() + " " + doctor.getLastName() + " (" + doctor.getSpecialization() + ")";
-                    }
-                }
-
-                tableModel.addRow(new Object[]{
-                        record.getRecordId(),
-                        patientName,
-                        doctorName,
-                        record.getRecordDate(), // LocalDateTime will print nicely
-                        record.getDiagnosis(),
-                        record.getTreatment(),
-                        record.getNotes()
-                });
+                populateTableRow(record);
             }
         }
+        // END TEMPORARY
+
+        // If you add MedicalRecordDAO.getAllMedicalRecords(), you'd use:
+        // List<MedicalRecord> records = medicalRecordDAO.getAllMedicalRecords();
+        // for (MedicalRecord record : records) {
+        //     populateTableRow(record);
+        // }
+
 
         if (tableModel.getRowCount() == 0) {
             System.out.println("No medical records found.");
         }
     }
 
+    // Helper method to populate a single row in the table
+    private void populateTableRow(MedicalRecord record) {
+        String patientName = "N/A";
+        Patient patient = patientDAO.getPatientById(record.getPatientId());
+        if (patient != null) {
+            patientName = patient.getFirstName() + " " + patient.getLastName();
+        }
+
+        String doctorName = "N/A";
+        if (record.getDoctorId() != null) {
+            Doctor doctor = doctorDAO.getDoctorById(record.getDoctorId());
+            if (doctor != null) {
+                doctorName = doctor.getFirstName() + " " + doctor.getLastName() + " (" + doctor.getSpecialization() + ")";
+            }
+        }
+
+        tableModel.addRow(new Object[]{
+                record.getRecordId(),
+                patientName,
+                doctorName,
+                record.getRecordDate(), // LocalDateTime will print nicely
+                record.getDiagnosis(),
+                record.getTreatment(),
+                record.getNotes()
+        });
+    }
+
+
     private void clearForm() {
         if (patientComboBox.getItemCount() > 0) patientComboBox.setSelectedIndex(0);
         if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
+        recordDatePicker.setDate(LocalDate.now()); // Reset to today's date
         diagnosisArea.setText("");
         treatmentArea.setText("");
         notesArea.setText("");
@@ -348,6 +408,14 @@ public class MedicalRecordPanel extends JPanel {
                 doctorComboBox.setSelectedItem("-- Select Doctor (Optional) --");
             } else {
                 doctorComboBox.setSelectedItem(doctorFullName);
+            }
+
+            // Set LocalDate from table to DatePicker
+            LocalDateTime recordDateTime = (LocalDateTime) tableModel.getValueAt(selectedRow, 3);
+            if (recordDateTime != null) {
+                recordDatePicker.setDate(recordDateTime.toLocalDate());
+            } else {
+                recordDatePicker.setDate(null);
             }
 
             diagnosisArea.setText((String) tableModel.getValueAt(selectedRow, 4));
