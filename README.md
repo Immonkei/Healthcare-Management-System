@@ -11,7 +11,7 @@ This is a **desktop application** developed in **Java Swing** for managing core 
 - View a list of all registered patients.
 - Update existing patient details.
 - Delete patient records.
-- **Search** patients by first name, last name, email, or phone number.
+- **Search** patients by first name, last name, email, or phone number(Future Plan).
 
 ### 👨‍⚕️ Doctor Management
 - Add new doctors with specialization and contact information.
