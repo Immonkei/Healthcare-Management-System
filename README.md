@@ -11,7 +11,7 @@ This is a **desktop application** developed in **Java Swing** for managing core 
 - View a list of all registered patients.
 - Update existing patient details.
 - Delete patient records.
-- **Search** patients by first name, last name, email, or phone number(Future Plan).
+- **Search** patients by first name, last name, email, or phone number.
 
 ### 👨‍⚕️ Doctor Management
 - Add new doctors with specialization and contact information.
@@ -193,7 +193,7 @@ Run `HealthcareAppTester.java` to verify DAO operations and database connection:
 
 ## 💡 Future Enhancements
 
-- ✅ Improved UI/UX: Validation, date pickers, advanced filters.
+- ✅ Improved UI/UX: Validation, advanced filters.
 - 🔐 User Authentication: Role-based login (admin, doctor, receptionist).
 - 📊 Reporting: Generate patient/doctor activity reports.
 - ⏰ Conflict Detection: Prevent overlapping appointments.
